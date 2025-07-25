@@ -33,8 +33,8 @@ Remember, the project is still under development, and some tasks are yet to be a
 Simply pull and run the Docker image:
 
 ```bash
-docker pull yourusername/s3ego:latest
-docker run -p 7777:7777 yourusername/s3ego:latest
+docker pull pedrobonifacio17/s3ego:latest
+docker run -p 7777:7777 pedrobonifacio17/s3ego:latest
 ```
 
 ## CURL Examples
@@ -58,10 +58,10 @@ You can also import the emulator directly in your Go projects and run it program
 
 ### Importing the package
 ```shell
-go get "github.com/yourusername/s3ego"
+go get "github.com/bonifacio-pedro/s3ego"
 ```
 ```go
-import "github.com/yourusername/s3ego"
+import "github.com/bonifacio-pedro/s3ego"
 ```
 
 ### Starting the emulator
