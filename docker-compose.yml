@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  s3ego:
+    build: .
+    ports:
+      - "7777:7777"
+    restart: unless-stopped
