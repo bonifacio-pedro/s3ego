@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"log"
@@ -27,6 +28,10 @@ func (fr *FileRepository) GetFileByKey(key string) (*model.File, error) {
 }
 
 func (fr *FileRepository) CreateFile(file *model.File) error {
+	if searchFile, _ := fr.GetFileByKey(file.Key); searchFile != nil {
+		return errors.New("file with this name already exists")
+	}
+
 	_, err := fr.db.Exec("INSERT INTO files (key, data, bucket_id) VALUES (?, ?, ?)", file.Key, file.Data, file.BucketID)
 	if err != nil {
 		return err
