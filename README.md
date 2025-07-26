@@ -1,11 +1,11 @@
 # S3EGO: S3 emulator built in Go
+[![Go Reference](https://pkg.go.dev/badge/github.com/bonifacio-pedro/s3ego#section-documentation.svg)](https://pkg.go.dev/github.com/bonifacio-pedro/s3ego#section-documentation)
+
 A lightweight S3 bucket emulator built in Go that allows you to create buckets, upload files, and retrieve them via simple REST endpoints or by using it as a Go module (library). Designed for local development and testing, with data stored in an in-memory SQLite database.
 
 Remember, the project is still under development, and some tasks are yet to be added, such as:
 
-- Unit Tests
-- Swagger Docs
-- In-Code Docs
+- Emulate S3 Headers
 - Store Metadata
 
 ## Features
