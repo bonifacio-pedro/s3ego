@@ -2,9 +2,9 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
-	"log"
 )
 
 type FileRepository struct {
@@ -20,18 +20,17 @@ func (fr *FileRepository) New(file *model.File) error {
 	if err != nil {
 		return fmt.Errorf("error inserting file DB row into files: %w", err)
 	}
-	log.Println(fmt.Sprintf("[S3-EMULATOR] File (key: %s) uploaded:", file.Key))
 
 	return nil
 }
 
-func (fr *FileRepository) ExistsByKey(key string) (bool, error) {
-	var exists bool
-	err := fr.db.QueryRow("SELECT EXISTS(SELECT 1 FROM files WHERE key = ?)", key).Scan(&exists)
+func (fr *FileRepository) Remove(key string) error {
+	_, err := fr.db.Exec("DELETE FROM files WHERE key=?", key)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if file exists: %w", err)
+		return fmt.Errorf("error deleting file DB row from files: %w", err)
 	}
-	return exists, nil
+
+	return nil
 }
 
 func (fr *FileRepository) GetByKey(key string) (*model.File, error) {
@@ -39,6 +38,9 @@ func (fr *FileRepository) GetByKey(key string) (*model.File, error) {
 	var f model.File
 
 	if err := row.Scan(&f.ID, &f.Key, &f.Data, &f.BucketID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("file does not exist")
+		}
 		return nil, fmt.Errorf("error scanning file DB row: %w", err)
 	}
 
