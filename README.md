@@ -3,10 +3,13 @@ A lightweight S3 bucket emulator built in Go that allows you to create buckets, 
 
 Remember, the project is still under development, and some tasks are yet to be added, such as:
 
-- Concurrency to enable sending multiple files
+- CLI
 - Unit Tests
 - Swagger Docs
 - In-Code Docs
+- Store Metadata
+- healthcheck in Dockerfile
+- GithubActions pipeline
 
 ## Features
 - Create buckets dynamically via REST API
