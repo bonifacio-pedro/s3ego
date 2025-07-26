@@ -1,24 +1,22 @@
-package s3emulator
+package s3ego
 
 import (
-	"database/sql"
 	"github.com/bonifacio-pedro/s3ego/internal/app"
 	"github.com/bonifacio-pedro/s3ego/internal/config"
+	"github.com/bonifacio-pedro/s3ego/internal/service"
 )
 
-type S3Emulator struct {
-	App *app.App
-	DB  *sql.DB
+type S3EGO struct {
+	Bucket *service.BucketService
+	File   *service.FileService
 }
 
-func Start() *S3Emulator {
+func Start() *S3EGO {
 	db := config.ConfigDatabase()
 	newApp := app.NewApp(db)
 
-	go newApp.Run()
-
-	return &S3Emulator{
-		App: newApp,
-		DB:  db,
+	return &S3EGO{
+		Bucket: newApp.BucketService,
+		File:   newApp.FileService,
 	}
 }
