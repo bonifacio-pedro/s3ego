@@ -3,13 +3,10 @@ A lightweight S3 bucket emulator built in Go that allows you to create buckets, 
 
 Remember, the project is still under development, and some tasks are yet to be added, such as:
 
-- CLI
 - Unit Tests
 - Swagger Docs
 - In-Code Docs
 - Store Metadata
-- healthcheck in Dockerfile
-- GithubActions pipeline
 
 ## Features
 - Create buckets dynamically via REST API
@@ -76,7 +73,7 @@ s3 := s3ego.Start()
 
 ### Example: Create a bucket programmatically
 ```go
-bucket, err := s3.App.BucketService.CreateBucket("mybucket")
+bucket, err := s3.App.BucketService.New("mybucket")
 if err != nil {
     log.Fatal(err)
 }
@@ -86,14 +83,25 @@ fmt.Println("Bucket created:", bucket.Name, bucket.Url)
 ### Functions you can use
 ```go
 s3 := s3emulator.Start()
-bucketUrl, err := s3.App.BucketService.CreateBucket("mybucket")
 
-// bucketUrl example: s3ego:80800//teste-2
-// FileData: receives a *[]byte
-fileData, _ := s3.App.FileService.GetFile(bucketUrl, fileKey)
+// Returns bucketUrl;
+bucketUrl, err := s3.App.BucketService.New("mybucket")
 
-// FileData: receives a *[]byte
-fileKey, _ := s3.App.FileService.UploadFile(bucketUrl, fileData, fileName)
+// buckerName: string
+// fileData: []byte
+// fileName: string
+// Returns string, error
+fileKey, _ := s3.App.FileService.Upload(bucketName, fileData, fileName)
+
+// bucketName: string
+// fileKey: string
+// Returns []byte, error
+fileData, _ := s3.App.FileService.Get(bucketName, fileKey)
+
+// List bucket files
+// buckerName: string
+// Returns []string, error
+fileKeys, _ := s3.App.BucketService.FindAllFiles(bucketName)
 ```
 
 ## Contributing

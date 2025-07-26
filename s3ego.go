@@ -3,12 +3,12 @@ package s3ego
 import (
 	"github.com/bonifacio-pedro/s3ego/internal/app"
 	"github.com/bonifacio-pedro/s3ego/internal/config"
-	"github.com/bonifacio-pedro/s3ego/internal/service"
+	"github.com/bonifacio-pedro/s3ego/internal/domain"
 )
 
 type S3EGO struct {
-	Bucket *service.BucketService
-	File   *service.FileService
+	Bucket *domain.BucketService
+	File   *domain.FileService
 }
 
 func Start() *S3EGO {
