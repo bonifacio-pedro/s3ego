@@ -58,7 +58,7 @@ func (bh *BucketHandler) FindAllFiles(c *gin.Context) {
 // It expects the bucket name as a URL parameter "bucket".
 // Returns HTTP 204 No Content on successful deletion,
 // or HTTP 400 Bad Request if an error occurs.
-func (bh *BucketHandler) Delete(c *gin.Context) {
+func (bh *BucketHandler) Remove(c *gin.Context) {
 	bucketName := c.Param("bucket")
 
 	err := bh.service.Remove(bucketName)

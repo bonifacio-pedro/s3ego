@@ -17,14 +17,14 @@ Remember, the project is still under development, and some tasks are yet to be a
 
 ## API Routes
 
-| Method | Endpoint                                 | Description                          |
-| ------ | ---------------------------------------- | ------------------------------------ |
-| POST   | `/bucket-emulator/new-bucket/:name`      | Create a new bucket by name          |
-| POST   | `/bucket-emulator/upload-file/:bucket`   | Upload a file to a bucket            |
-| GET    | `/bucket-emulator/get-file/:bucket/*key` | Download a file by key from a bucket |
-| GET    | `/bucket-emulator/list-files/:bucket`    | List all files from a bucket         |
-| DELETE | `/bucket-emulator/delete/:bucket`        | Delete a bucket                      |
-| DELETE | `/bucket-emulator/delete/:bucket/*key`   | Delete a specific file from a bucket |
+| Method | Endpoint                                    | Description                          |
+| ------ |---------------------------------------------| ------------------------------------ |
+| POST   | `/bucket-emulator/new-bucket/:name`         | Create a new bucket by name          |
+| POST   | `/bucket-emulator/upload-file/:bucket`      | Upload a file to a bucket            |
+| GET    | `/bucket-emulator/get-file/:bucket/*key`    | Download a file by key from a bucket |
+| GET    | `/bucket-emulator/list-files/:bucket`       | List all files from a bucket         |
+| DELETE | `/bucket-emulator/remove-bucket/:bucket`    | Delete a bucket                      |
+| DELETE | `/bucket-emulator/remove-file/:bucket/*key` | Delete a specific file from a bucket |
 
 ## Getting Started
 ### Prerequisites:
