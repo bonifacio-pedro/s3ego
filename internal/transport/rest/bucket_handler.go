@@ -41,3 +41,15 @@ func (bh *BucketHandler) FindAllFiles(c *gin.Context) {
 		"files": files,
 	})
 }
+
+func (bh *BucketHandler) Delete(c *gin.Context) {
+	bucketName := c.Param("bucket")
+
+	err := bh.service.Remove(bucketName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, gin.H{})
+}

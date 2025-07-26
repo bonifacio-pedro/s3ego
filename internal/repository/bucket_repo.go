@@ -24,14 +24,13 @@ func (br *BucketRepository) New(bucket *model.Bucket) error {
 	return nil
 }
 
-func (br *BucketRepository) GetByUrl(url string) (*model.Bucket, error) {
-	row := br.db.QueryRow("SELECT id, name, url FROM buckets WHERE url = ?", url)
-	var bucket model.Bucket
-
-	if err := row.Scan(&bucket.ID, &bucket.Name, &bucket.Url); err != nil {
-		return nil, fmt.Errorf("error converting DB row to model: %w", err)
+func (br *BucketRepository) Remove(bucketID int) error {
+	_, err := br.db.Exec("DELETE FROM files WHERE bucket_id = ?", bucketID)
+	if err != nil {
+		return fmt.Errorf("failed to remove bucket: %w", err)
 	}
-	return &bucket, nil
+
+	return nil
 }
 
 func (br *BucketRepository) ExistsByName(bucketName string) (bool, error) {
@@ -75,4 +74,22 @@ func (br *BucketRepository) GetFiles(bucketID int) ([]string, error) {
 	}
 
 	return keys, nil
+}
+
+func (br *BucketRepository) FileExists(bucketName string, key string) (bool, error) {
+	var exists bool
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM files f
+			INNER JOIN buckets b ON f.bucket_id = b.id
+			WHERE b.name = ? AND f.key = ?
+		)
+	`
+
+	err := br.db.QueryRow(query, bucketName, key).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if file exists in bucket: %w", err)
+	}
+	return exists, nil
 }

@@ -51,3 +51,18 @@ func (bs *BucketService) FindAllFiles(bucketName string) (*[]string, error) {
 
 	return &files, err
 }
+
+func (bs *BucketService) Remove(bucketName string) error {
+	bucket, err := bs.repository.GetByName(bucketName)
+	if err != nil {
+		return err
+	}
+
+	if err := bs.repository.Remove(bucket.ID); err != nil {
+		return err
+	}
+
+	log.Println("[S3EGO] BUCKET DELETED: ", bucketName)
+
+	return nil
+}

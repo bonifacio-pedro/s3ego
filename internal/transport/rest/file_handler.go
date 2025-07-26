@@ -29,6 +29,19 @@ func (fh *FileHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"file": file})
 }
 
+func (fh *FileHandler) Remove(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	key := strings.TrimPrefix(c.Param("key"), "/")
+
+	err := fh.service.Remove(bucketName, key)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.JSON(http.StatusNoContent, gin.H{})
+}
+
 func (fh *FileHandler) New(c *gin.Context) {
 	bucketName := c.Param("bucket")
 
