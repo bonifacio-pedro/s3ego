@@ -5,7 +5,6 @@ import (
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"github.com/bonifacio-pedro/s3ego/internal/repository"
 	"github.com/gin-gonic/gin"
-	"log"
 	"net/http"
 )
 
@@ -24,7 +23,8 @@ func (bh *BucketHandler) CreateBucket(c *gin.Context) {
 	bucket := model.CreateBucket(bucketName)
 
 	if err := bucketRepository.CreateBucket(bucket); err != nil {
-		log.Fatal(err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

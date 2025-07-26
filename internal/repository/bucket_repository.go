@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"log"
 )
@@ -15,6 +16,10 @@ func NewBucketRepository(db *sql.DB) *BucketRepository {
 }
 
 func (br *BucketRepository) CreateBucket(bucket *model.Bucket) error {
+	if searchBucket, _ := br.GetBucketByName(bucket.Name); searchBucket != nil {
+		return errors.New("bucket with this name already exists")
+	}
+
 	_, err := br.db.Exec("INSERT INTO buckets (name, url) VALUES (?, ?)", bucket.Name, bucket.Url)
 	if err != nil {
 		return err
