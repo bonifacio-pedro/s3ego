@@ -2,26 +2,42 @@ package app
 
 import (
 	"database/sql"
-	"github.com/bonifacio-pedro/s3ego/internal/routes"
-	"github.com/bonifacio-pedro/s3ego/internal/service"
+	"github.com/bonifacio-pedro/s3ego/internal/domain"
+	"github.com/bonifacio-pedro/s3ego/internal/repository"
+	"github.com/bonifacio-pedro/s3ego/internal/transport/rest"
+	"github.com/bonifacio-pedro/s3ego/internal/transport/routes"
 	"github.com/gin-gonic/gin"
 	"log"
 )
 
 type App struct {
 	Router        *gin.Engine
-	BucketService *service.BucketService
-	FileService   *service.FileService
+	BucketService *domain.BucketService
+	FileService   *domain.FileService
 }
 
 func NewApp(db *sql.DB) *App {
 	gin.SetMode(gin.ReleaseMode)
-	r := routes.HandleRequests(db)
-	bucketService := service.NewBucketService(db)
-	fileService := service.NewFileService(db)
+	rg := gin.Default()
+
+	// Repositories
+	bucketRepository := repository.NewBucketRepository(db)
+	fileRepository := repository.NewFileRepository(db)
+
+	// Services
+	bucketService := domain.NewBucketService(bucketRepository)
+	fileService := domain.NewFileService(fileRepository, bucketRepository)
+
+	// Transport layer
+	bucketHandler := rest.NewBucketHandler(bucketService)
+	fileHandler := rest.NewFileHandler(fileService)
+
+	// Routing
+	router := routes.NewRouter(rg, bucketHandler, fileHandler)
+	router.RegisterRoutes()
 
 	return &App{
-		Router:        r,
+		Router:        rg,
 		BucketService: bucketService,
 		FileService:   fileService,
 	}

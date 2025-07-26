@@ -9,11 +9,11 @@ type File struct {
 	BucketID uint   `json:"bucket_id"`
 }
 
-func CreateFile(data *[]byte, bucket *Bucket, fileName string) *File {
+func NewFile(data []byte, bucket Bucket, fileName string) File {
 	file := new(File)
-	file.Data = *data
+	file.Data = data
 	file.BucketID = uint(bucket.ID)
 	file.Key = fmt.Sprintf("%s/%s", bucket.Name, fileName)
 
-	return file
+	return *file
 }
