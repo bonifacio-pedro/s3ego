@@ -3,9 +3,9 @@ package service
 import (
 	"database/sql"
 	"fmt"
+	"github.com/bonifacio-pedro/s3ego/internal/model"
+	"github.com/bonifacio-pedro/s3ego/internal/repository"
 	"log"
-	"s3ego/internal/model"
-	"s3ego/internal/repository"
 )
 
 type FileService struct {
@@ -34,7 +34,7 @@ func (fs *FileService) GetFile(bucketUrl string, key string) (*[]byte, error) {
 		return nil, err
 	}
 
-	log.Println(fmt.Sprintf("[S3-EMULATOR] NEW FILE DOWNLOADED: %s/%s", bucket.Name, key))
+	log.Println(fmt.Sprintf("[S3EGO] NEW FILE DOWNLOADED: %s/%s", bucket.Name, key))
 
 	return &file.Data, nil
 }
@@ -53,7 +53,7 @@ func (fs *FileService) UploadFile(bucketUrl string, data *[]byte, fileName strin
 		return "", err
 	}
 
-	log.Println(fmt.Sprintf("[S3-EMULATOR] NEW FILE RECEIVED: %s/%s", bucket.Name, fileModel.Key))
+	log.Println(fmt.Sprintf("[S3EGO] NEW FILE RECEIVED: %s/%s", bucket.Name, fileModel.Key))
 
 	return fileModel.Key, nil
 }

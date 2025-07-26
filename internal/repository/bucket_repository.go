@@ -2,8 +2,8 @@ package repository
 
 import (
 	"database/sql"
+	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"log"
-	"s3ego/internal/model"
 )
 
 type BucketRepository struct {
@@ -19,7 +19,7 @@ func (br *BucketRepository) CreateBucket(bucket *model.Bucket) error {
 	if err != nil {
 		return err
 	}
-	log.Println("[S3-EMULATOR] Bucket created:", bucket.Name)
+	log.Println("[S3EGO] Bucket created:", bucket.Name)
 
 	return nil
 }

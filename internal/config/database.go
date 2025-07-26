@@ -10,9 +10,9 @@ import (
 func ConfigDatabase() *sql.DB {
 	db, err := sql.Open("sqlite", "file::memory:?mode=memory&cache=shared")
 	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3-EMULATOR] %s"), err)
+		log.Fatal(fmt.Sprintf("[S3EGO] %s"), err)
 	}
-	log.Println("[S3-EMULATOR] Started Database")
+	log.Println("[S3EGO] Started Database")
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS buckets (
@@ -22,9 +22,9 @@ func ConfigDatabase() *sql.DB {
 		);
 	`)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3-EMULATOR] %s"), err)
+		log.Fatal(fmt.Sprintf("[S3EGO] %s"), err)
 	}
-	log.Println("[S3-EMULATOR] Buckets started")
+	log.Println("[S3EGO] Buckets started")
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS files (
@@ -36,9 +36,9 @@ func ConfigDatabase() *sql.DB {
 		);
 	`)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3-EMULATOR] %s"), err)
+		log.Fatal(fmt.Sprintf("[S3EGO] %s"), err)
 	}
-	log.Println("[S3-EMULATOR] Files table started")
+	log.Println("[S3EGO] Files table started")
 
 	return db
 }

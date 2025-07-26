@@ -2,10 +2,10 @@ package app
 
 import (
 	"database/sql"
+	"github.com/bonifacio-pedro/s3ego/internal/routes"
+	"github.com/bonifacio-pedro/s3ego/internal/service"
 	"github.com/gin-gonic/gin"
 	"log"
-	"s3ego/internal/routes"
-	"s3ego/internal/service"
 )
 
 type App struct {

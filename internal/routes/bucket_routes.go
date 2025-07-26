@@ -2,8 +2,8 @@ package routes
 
 import (
 	"database/sql"
+	"github.com/bonifacio-pedro/s3ego/internal/handlers"
 	"github.com/gin-gonic/gin"
-	"s3ego/internal/handlers"
 )
 
 func HandleRequests(db *sql.DB) *gin.Engine {

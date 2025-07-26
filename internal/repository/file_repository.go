@@ -3,8 +3,8 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"log"
-	"s3ego/internal/model"
 )
 
 type FileRepository struct {

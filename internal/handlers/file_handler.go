@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"database/sql"
+	"github.com/bonifacio-pedro/s3ego/internal/model"
+	"github.com/bonifacio-pedro/s3ego/internal/repository"
+	fileUtils "github.com/bonifacio-pedro/s3ego/internal/utils"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"s3ego/internal/model"
-	"s3ego/internal/repository"
-	fileUtils "s3ego/internal/utils"
 	"strings"
 )
 

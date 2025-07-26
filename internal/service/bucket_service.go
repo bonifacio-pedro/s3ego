@@ -2,9 +2,9 @@ package service
 
 import (
 	"database/sql"
+	"github.com/bonifacio-pedro/s3ego/internal/model"
+	"github.com/bonifacio-pedro/s3ego/internal/repository"
 	"log"
-	"s3ego/internal/model"
-	"s3ego/internal/repository"
 )
 
 type BucketService struct {
