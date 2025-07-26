@@ -71,7 +71,7 @@ func (fh *FileHandler) UploadFile(c *gin.Context) {
 	fileModel := model.CreateFile(&fileData, bucket, fileHeader.Filename)
 
 	if err := fileRepository.CreateFile(fileModel); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
