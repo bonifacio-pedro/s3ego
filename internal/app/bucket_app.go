@@ -1,3 +1,5 @@
+// Package app initializes and runs the main S3EGO application,
+// setting up the repository, services, handlers, and routes.
 package app
 
 import (
@@ -10,14 +12,22 @@ import (
 	"log"
 )
 
+// App represents the main application instance.
+// It holds the router and core services (BucketService and FileService).
 type App struct {
 	Router        *gin.Engine
 	BucketService *domain.BucketService
 	FileService   *domain.FileService
 }
 
+// NewApp initializes the application, wiring together dependencies such as
+// repositories, services, handlers, and routes.
+// It returns a fully constructed App ready to be run.
 func NewApp(db *sql.DB) *App {
+	// Set Gin to Release mode (no debug output)
 	gin.SetMode(gin.ReleaseMode)
+
+	// Initialize Gin engine
 	rg := gin.Default()
 
 	// Repositories
@@ -28,11 +38,11 @@ func NewApp(db *sql.DB) *App {
 	bucketService := domain.NewBucketService(bucketRepository)
 	fileService := domain.NewFileService(fileRepository, bucketRepository)
 
-	// Transport layer
+	// Handlers (transport layer)
 	bucketHandler := rest.NewBucketHandler(bucketService)
 	fileHandler := rest.NewFileHandler(fileService)
 
-	// Routing
+	// Routes
 	router := routes.NewRouter(rg, bucketHandler, fileHandler)
 	router.RegisterRoutes()
 
@@ -43,6 +53,8 @@ func NewApp(db *sql.DB) *App {
 	}
 }
 
+// Run starts the HTTP server on port 7777.
+// If an error occurs during startup, the application will panic.
 func (a *App) Run() {
 	if err := a.Router.Run(":7777"); err != nil {
 		log.Panic(err)
