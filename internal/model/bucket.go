@@ -11,11 +11,11 @@ type Bucket struct {
 	Files []File `json:"files"`
 }
 
-func CreateBucket(bucketName string) *Bucket {
+func NewBucket(bucketName string) Bucket {
 	bucket := new(Bucket)
 	bucket.Name = bucketName
 	bucket.Url = fmt.Sprintf("s3ego:7777//%s", bucketName)
 	bucket.Files = make([]File, 0)
 
-	return bucket
+	return *bucket
 }
