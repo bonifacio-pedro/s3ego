@@ -15,6 +15,7 @@ type App struct {
 }
 
 func NewApp(db *sql.DB) *App {
+	gin.SetMode(gin.ReleaseMode)
 	r := routes.HandleRequests(db)
 	bucketService := service.NewBucketService(db)
 	fileService := service.NewFileService(db)
