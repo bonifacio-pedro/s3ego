@@ -43,3 +43,26 @@ func (br *BucketRepository) GetBucketByName(bucketName string) (*model.Bucket, e
 	}
 	return &bucket, nil
 }
+
+func (br *BucketRepository) GetFiles(bucketID int) ([]string, error) {
+	rows, err := br.db.Query("SELECT key FROM files WHERE bucket_id = ?", bucketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0)
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}
