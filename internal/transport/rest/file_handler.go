@@ -1,3 +1,4 @@
+// Package rest provides HTTP handlers for file and bucket related operations.
 package rest
 
 import (
@@ -9,14 +10,20 @@ import (
 	"strings"
 )
 
+// FileHandler handles HTTP requests related to file operations.
 type FileHandler struct {
 	service *domain.FileService
 }
 
+// NewFileHandler creates a new FileHandler with the given FileService.
 func NewFileHandler(service *domain.FileService) *FileHandler {
 	return &FileHandler{service: service}
 }
 
+// Get handles GET requests to download a file from a bucket.
+// It expects the bucket name as URL parameter "bucket" and the file key as "key".
+// Returns HTTP 200 OK with file data on success,
+// or HTTP 400 Bad Request if an error occurs.
 func (fh *FileHandler) Get(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	key := strings.TrimPrefix(c.Param("key"), "/")
@@ -24,11 +31,33 @@ func (fh *FileHandler) Get(c *gin.Context) {
 	file, err := fh.service.Get(bucketName, key)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"file": file})
 }
 
+// Remove handles DELETE requests to delete a file from a bucket.
+// It expects the bucket name as URL parameter "bucket" and the file key as "key".
+// Returns HTTP 204 No Content on success,
+// or HTTP 400 Bad Request if an error occurs.
+func (fh *FileHandler) Remove(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	key := strings.TrimPrefix(c.Param("key"), "/")
+
+	err := fh.service.Remove(bucketName, key)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, gin.H{})
+}
+
+// New handles POST requests to upload a new file to a bucket.
+// It expects the bucket name as URL parameter "bucket" and a form file with key "file".
+// Returns HTTP 201 Created with the file key and bucket name on success,
+// or HTTP 400 Bad Request / 500 Internal Server Error if an error occurs.
 func (fh *FileHandler) New(c *gin.Context) {
 	bucketName := c.Param("bucket")
 
@@ -57,6 +86,7 @@ func (fh *FileHandler) New(c *gin.Context) {
 	})
 }
 
+// getFileData reads all bytes from the uploaded file header.
 func getFileData(fileHeader *multipart.FileHeader) ([]byte, error) {
 	file, err := fileHeader.Open()
 	if err != nil {

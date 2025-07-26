@@ -17,16 +17,19 @@ Remember, the project is still under development, and some tasks are yet to be a
 
 ## API Routes
 
-| Method | Endpoint                                  | Description                      |
-|--------|-------------------------------------------|---------------------------------|
-| POST   | `/bucket-emulator/new-bucket/:name`       | Create a new bucket by name      |
-| POST   | `/bucket-emulator/upload-file/:bucket`    | Upload a file to a bucket        |
-| GET    | `/bucket-emulator/get-file/:bucket/*key`  | Download a file by key from a bucket |
+| Method | Endpoint                                 | Description                          |
+| ------ | ---------------------------------------- | ------------------------------------ |
+| POST   | `/bucket-emulator/new-bucket/:name`      | Create a new bucket by name          |
+| POST   | `/bucket-emulator/upload-file/:bucket`   | Upload a file to a bucket            |
+| GET    | `/bucket-emulator/get-file/:bucket/*key` | Download a file by key from a bucket |
+| GET    | `/bucket-emulator/list-files/:bucket`    | List all files from a bucket         |
+| DELETE | `/bucket-emulator/delete/:bucket`        | Delete a bucket                      |
+| DELETE | `/bucket-emulator/delete/:bucket/*key`   | Delete a specific file from a bucket |
 
 ## Getting Started
 ### Prerequisites:
 - Docker installed on your machine ([Get Docker](https://docs.docker.com/get-docker/)) 
-- If you use the Go Library, you need to have Go in your machine
+- If using as a Go library: Go 1.21+ installed
 
 ### Run the Emulator
 
@@ -51,6 +54,18 @@ curl -X POST http://localhost:7777/bucket-emulator/upload-file/mybucket \
 - Download a File
 ```sh
 curl http://localhost:7777/bucket-emulator/get-file/mybucket/mybucket/file.txt --output downloaded_file.txt
+```
+- List Files in a Bucket
+```sh
+curl http://localhost:7777/bucket-emulator/list-files/mybucket
+```
+- Delete File
+```sh
+curl -X DELETE http://localhost:7777/bucket-emulator/delete/mybucket/mybucket/file.txt
+```
+- Delete a Bucker
+```sh
+curl -X DELETE http://localhost:7777/bucket-emulator/delete/mybucket
 ```
 
 ## Using as a Go Library
@@ -82,27 +97,26 @@ fmt.Println("Bucket created:", bucket.Name, bucket.Url)
 
 ### Functions you can use
 ```go
-s3 := s3emulator.Start()
-
-// Returns bucketUrl;
+// Create a bucket
 bucketUrl, err := s3.App.BucketService.New("mybucket")
 
-// buckerName: string
-// fileData: []byte
-// fileName: string
-// Returns string, error
-fileKey, _ := s3.App.FileService.Upload(bucketName, fileData, fileName)
+// Upload a file
+fileKey, err := s3.App.FileService.Upload("mybucket", []byte("data here"), "file.txt")
 
-// bucketName: string
-// fileKey: string
-// Returns []byte, error
-fileData, _ := s3.App.FileService.Get(bucketName, fileKey)
+// Retrieve the file
+data, err := s3.App.FileService.Get("mybucket", fileKey)
 
-// List bucket files
-// buckerName: string
-// Returns []string, error
-fileKeys, _ := s3.App.BucketService.FindAllFiles(bucketName)
+// List all files in a bucket
+files, err := s3.App.BucketService.FindAllFiles("mybucket")
+
+// Delete a file
+err := s3.App.FileService.Remove("mybucket", fileKey)
+
+// Delete a bucket
+err := s3.App.BucketService.Remove("mybucket")
 ```
 
 ## Contributing
-Feel free to fork the repository, create feature branches, and submit pull requests.
+Feel free to fork the repository, open issues, submit feature branches, and create pull requests. All contributions are welcome!
+
+

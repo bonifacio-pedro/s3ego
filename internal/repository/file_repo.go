@@ -1,44 +1,55 @@
+// Package repository provides database access methods for files.
 package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
-	"log"
 )
 
+// FileRepository handles CRUD operations for files in the database.
 type FileRepository struct {
 	db *sql.DB
 }
 
+// NewFileRepository creates a new FileRepository with the given database connection.
 func NewFileRepository(db *sql.DB) *FileRepository {
 	return &FileRepository{db: db}
 }
 
+// New inserts a new file record into the files table.
+// Returns an error if the insertion fails.
 func (fr *FileRepository) New(file *model.File) error {
 	_, err := fr.db.Exec("INSERT INTO files (key, data, bucket_id) VALUES (?, ?, ?)", file.Key, file.Data, file.BucketID)
 	if err != nil {
 		return fmt.Errorf("error inserting file DB row into files: %w", err)
 	}
-	log.Println(fmt.Sprintf("[S3-EMULATOR] File (key: %s) uploaded:", file.Key))
 
 	return nil
 }
 
-func (fr *FileRepository) ExistsByKey(key string) (bool, error) {
-	var exists bool
-	err := fr.db.QueryRow("SELECT EXISTS(SELECT 1 FROM files WHERE key = ?)", key).Scan(&exists)
+// Remove deletes a file record from the files table by its key.
+// Returns an error if the deletion fails.
+func (fr *FileRepository) Remove(key string) error {
+	_, err := fr.db.Exec("DELETE FROM files WHERE key=?", key)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if file exists: %w", err)
+		return fmt.Errorf("error deleting file DB row from files: %w", err)
 	}
-	return exists, nil
+
+	return nil
 }
 
+// GetByKey retrieves a file from the database by its key.
+// Returns the file model or an error if the file does not exist or scanning fails.
 func (fr *FileRepository) GetByKey(key string) (*model.File, error) {
 	row := fr.db.QueryRow("SELECT id, key, data, bucket_id FROM files WHERE key = ?", key)
 	var f model.File
 
 	if err := row.Scan(&f.ID, &f.Key, &f.Data, &f.BucketID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("file does not exist")
+		}
 		return nil, fmt.Errorf("error scanning file DB row: %w", err)
 	}
 
