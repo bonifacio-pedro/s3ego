@@ -35,7 +35,7 @@ func (fs *FileService) Get(bucketName string, key string) ([]byte, error) {
 	}
 
 	if int(file.BucketID) != bucket.ID {
-		return nil, err
+		return nil, fmt.Errorf("this file is not in %s bucket", bucket.Name)
 	}
 
 	log.Println(fmt.Sprintf("[S3EGO] PULLED NEW FILE: %s/%s", bucket.Name, key))
