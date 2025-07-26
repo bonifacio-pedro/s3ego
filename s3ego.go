@@ -2,8 +2,8 @@ package s3emulator
 
 import (
 	"database/sql"
-	"s3ego/internal/app"
-	"s3ego/internal/config"
+	"github.com/bonifacio-pedro/s3ego/internal/app"
+	"github.com/bonifacio-pedro/s3ego/internal/config"
 )
 
 type S3Emulator struct {
