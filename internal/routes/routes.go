@@ -13,6 +13,8 @@ func HandleRequests(db *sql.DB) *gin.Engine {
 	fileHandler := handlers.NewFileHandler(db)
 
 	r.POST("/bucket-emulator/new-bucket/:name", bucketHandler.CreateBucket)
+	r.GET("/bucket-emulator/list-files/:bucket", bucketHandler.FindAllFilesInABucket)
+
 	r.POST("/bucket-emulator/upload-file/:bucket", fileHandler.UploadFile)
 	r.GET("/bucket-emulator/get-file/:bucket/*key", fileHandler.GetFile)
 
