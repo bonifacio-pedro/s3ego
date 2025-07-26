@@ -17,13 +17,31 @@ func NewBucketService(db *sql.DB) *BucketService {
 
 func (bs *BucketService) CreateBucket(name string) (string, error) {
 	bucketRepository := repository.NewBucketRepository(bs.db)
-	bucketModel := model.CreateBucket(name)
+	bucket := model.CreateBucket(name)
 
-	if err := bucketRepository.CreateBucket(bucketModel); err != nil {
+	if err := bucketRepository.CreateBucket(bucket); err != nil {
 		return "", err
 	}
 
-	log.Println("[S3-EMULATOR] CREATED NEW BUCKET: ", bucketModel.Name)
+	log.Println("[S3EG0] CREATED NEW BUCKET: ", bucket.Name)
 
-	return bucketModel.Url, nil
+	return bucket.Url, nil
+}
+
+func (bs *BucketService) FindAllFilesInABucket(bucketName string) (*[]string, error) {
+	bucketRepository := repository.NewBucketRepository(bs.db)
+
+	bucket, err := bucketRepository.GetBucketByName(bucketName)
+	if err != nil {
+		return nil, err
+	}
+
+	files, err := bucketRepository.GetFiles(bucket.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("[S3EGO] LISTED ALL FILES IN A BUCKET: ", bucket.Name)
+
+	return &files, err
 }
