@@ -34,7 +34,7 @@ func (fs *FileService) GetFile(bucketUrl string, key string) (*[]byte, error) {
 		return nil, err
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] NEW FILE DOWNLOADED: %s/%s", bucket.Name, key))
+	log.Println(fmt.Sprintf("[S3EGO] PULLED NEW FILE: %s/%s", bucket.Name, key))
 
 	return &file.Data, nil
 }
@@ -53,7 +53,7 @@ func (fs *FileService) UploadFile(bucketUrl string, data *[]byte, fileName strin
 		return "", err
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] NEW FILE RECEIVED: %s/%s", bucket.Name, fileModel.Key))
+	log.Println(fmt.Sprintf("[S3EGO] RECEIVED NEW FILE: %s/%s", bucket.Name, fileModel.Key))
 
 	return fileModel.Key, nil
 }
