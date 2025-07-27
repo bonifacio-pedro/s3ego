@@ -49,8 +49,15 @@ func (bh *BucketHandler) FindAllFiles(c *gin.Context) {
 		return
 	}
 
+	// Default S3 Headers
+	c.Header("x-amz-bucket-region", "us-east-1") // Default region
+	c.Header("Content-Type", "application/json")
+
 	c.JSON(http.StatusOK, gin.H{
-		"files": files,
+		"Name":        bucketName,
+		"Contents":    files,
+		"MaxKeys":     1000,
+		"IsTruncated": false,
 	})
 }
 
