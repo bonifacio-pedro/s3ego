@@ -2,6 +2,7 @@
 package routes
 
 import (
+	"github.com/bonifacio-pedro/s3ego/internal/transport/middleware"
 	"github.com/bonifacio-pedro/s3ego/internal/transport/rest"
 	"github.com/gin-gonic/gin"
 )
@@ -25,11 +26,14 @@ func NewRouter(rg *gin.Engine, bucketHandler *rest.BucketHandler, fileHandler *r
 	return &Router{rg: rg, bucketHandler: bucketHandler, fileHandler: fileHandler}
 }
 
-// RegisterRoutes registers all HTTP routes/endpoints for the bucket and file handlers.
+// RegisterRoutes configure S3HeadersMiddleware and
+// registers all HTTP routes/endpoints for the bucket and file handlers.
 //
 // It sets up routes for creating buckets, listing files, deleting buckets and files,
 // uploading files, and retrieving files from the bucket emulator.
 func (ro *Router) RegisterRoutes() {
+	ro.rg.Use(middleware.S3HeadersMiddleware())
+
 	ro.rg.POST("/bucket-emulator/new-bucket/:name", ro.bucketHandler.Create)
 	ro.rg.GET("/bucket-emulator/list-files/:bucket", ro.bucketHandler.FindAllFiles)
 	ro.rg.DELETE("/bucket-emulator/remove-bucket/:bucket", ro.bucketHandler.Remove)

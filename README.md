@@ -101,10 +101,11 @@ fmt.Println("Bucket created:", bucket.Name, bucket.Url)
 bucketUrl, err := s3.App.BucketService.New("mybucket")
 
 // Upload a file
-fileKey, err := s3.App.FileService.Upload("mybucket", []byte("data here"), "file.txt")
+fileKey, fileEtag, err := s3.App.FileService.Upload("mybucket", []byte("data here"), "file.txt")
 
 // Retrieve the file
-data, err := s3.App.FileService.Get("mybucket", fileKey)
+// see the documentation to verify all modelFile attributes
+data, modelFile, err := s3.App.FileService.Get("mybucket", fileKey)
 
 // List all files in a bucket
 files, err := s3.App.BucketService.FindAllFiles("mybucket")
