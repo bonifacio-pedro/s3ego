@@ -21,7 +21,19 @@ func NewFileRepository(db *sql.DB) *FileRepository {
 // New inserts a new file record into the files table.
 // Returns an error if the insertion fails.
 func (fr *FileRepository) New(file *model.File) error {
-	_, err := fr.db.Exec("INSERT INTO files (key, data, bucket_id) VALUES (?, ?, ?)", file.Key, file.Data, file.BucketID)
+	_, err := fr.db.Exec(`
+		INSERT INTO files (
+			key, data, bucket_id, etag, content_type, size, created_at, last_modified
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		file.Key,
+		file.Data,
+		file.BucketID,
+		file.ETag,
+		file.ContentType,
+		file.Size,
+		file.CreatedAt,
+		file.LastModified,
+	)
 	if err != nil {
 		return fmt.Errorf("error inserting file DB row into files: %w", err)
 	}

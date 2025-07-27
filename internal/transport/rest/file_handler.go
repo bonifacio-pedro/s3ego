@@ -2,12 +2,15 @@
 package rest
 
 import (
+	"crypto/md5"
+	"fmt"
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/gin-gonic/gin"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // FileHandler handles HTTP requests related to file operations.
@@ -28,13 +31,22 @@ func (fh *FileHandler) Get(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	key := strings.TrimPrefix(c.Param("key"), "/")
 
-	file, err := fh.service.Get(bucketName, key)
+	fileData, fileModel, err := fh.service.Get(bucketName, key)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"file": file})
+	// S3 Default Headers
+	etag := fmt.Sprintf(`"%x"`, md5.Sum(fileData))
+	c.Header("ETag", etag)
+	c.Header("Last-Modified", fileModel.LastModified.UTC().Format(time.RFC1123))
+	c.Header("Content-Length", fmt.Sprintf("%d", len(fileData)))
+	c.Header("Content-Type", fileModel.ContentType)
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("x-amz-storage-class", "STANDARD")
+
+	c.Data(http.StatusOK, fileModel.ContentType, fileData)
 }
 
 // Remove handles DELETE requests to delete a file from a bucket.
@@ -73,16 +85,22 @@ func (fh *FileHandler) New(c *gin.Context) {
 		return
 	}
 
-	fileKey, err := fh.service.Upload(bucketName, fileData, fileHeader.Filename)
+	fileKey, fileEtag, err := fh.service.Upload(bucketName, fileData, fileHeader.Filename)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	// S3 Default Headers
+	c.Header("ETag", fileEtag)
+	c.Header("x-amz-version-id", "null")
+	c.Header("x-amz-storage-class", "STANDARD")
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "File uploaded successfully",
 		"key":     fileKey,
 		"bucket":  bucketName,
+		"etag":    fileEtag,
 	})
 }
 

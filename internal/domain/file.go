@@ -23,23 +23,23 @@ func NewFileService(fileRepository *repository.FileRepository, bucketRepository 
 // Get retrieves the file data by bucket name and file key.
 // Returns the file data bytes or an error if the bucket or file doesn't exist,
 // or if the file does not belong to the specified bucket.
-func (fs *FileService) Get(bucketName string, key string) ([]byte, error) {
+func (fs *FileService) Get(bucketName string, key string) ([]byte, model.File, error) {
 	bucket, err := fs.bucketRepository.GetByName(bucketName)
 	if err != nil {
-		return nil, err
+		return nil, model.File{}, err
 	}
 
 	file, err := fs.fileRepository.GetByKey(key)
 	if err != nil {
-		return nil, err
+		return nil, model.File{}, err
 	}
 
 	if int(file.BucketID) != bucket.ID {
-		return nil, fmt.Errorf("this file is not in %s bucket", bucket.Name)
+		return nil, model.File{}, fmt.Errorf("this file is not in %s bucket", bucket.Name)
 	}
 
 	log.Println(fmt.Sprintf("[S3EGO] PULLED NEW FILE: %s/%s", bucket.Name, key))
-	return file.Data, nil
+	return file.Data, *file, nil
 }
 
 // Remove deletes a file specified by bucket name and key.
@@ -72,27 +72,27 @@ func (fs *FileService) Remove(bucketName string, key string) error {
 // Upload stores a new file in the specified bucket.
 // It returns the key of the stored file or an error if the bucket does not exist,
 // if the file already exists in the bucket, or if there was a failure during insertion.
-func (fs *FileService) Upload(bucketName string, data []byte, fileName string) (string, error) {
+func (fs *FileService) Upload(bucketName string, data []byte, fileName string) (string, string, error) {
 	bucket, err := fs.bucketRepository.GetByName(bucketName)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	fileModel := model.NewFile(data, *bucket, fileName)
 
 	fileExists, err := fs.bucketRepository.FileExists(bucketName, fileModel.Key)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if fileExists {
-		return fileModel.Key, fmt.Errorf("file %s already exists in %s bucket", fileModel.Key, bucketName)
+		return fileModel.Key, fileModel.ETag, fmt.Errorf("file %s already exists in %s bucket", fileModel.Key, bucketName)
 	}
 
 	if err := fs.fileRepository.New(&fileModel); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] RECEIVED NEW FILE: %s/%s", bucket.Name, fileModel.Key))
-	return fileModel.Key, nil
+	log.Println(fmt.Sprintf("[S3EGO] RECEIVED NEW FILE: %s/%s/%s", bucket.Name, fileModel.Key, fileModel.ETag))
+	return fileModel.Key, fileModel.ETag, nil
 }
