@@ -4,22 +4,23 @@ package rest
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/bonifacio-pedro/s3ego/internal/domain"
-	"github.com/gin-gonic/gin"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bonifacio-pedro/s3ego/internal/domain"
+	"github.com/gin-gonic/gin"
 )
 
 // FileHandler handles HTTP requests related to file operations.
 type FileHandler struct {
-	service *domain.FileService
+	service domain.FileService
 }
 
 // NewFileHandler creates a new FileHandler with the given FileService.
-func NewFileHandler(service *domain.FileService) *FileHandler {
+func NewFileHandler(service domain.FileService) *FileHandler {
 	return &FileHandler{service: service}
 }
 

@@ -21,8 +21,8 @@ import (
 
 // S3EGO is the main struct exposing the bucket and file services for the emulator.
 type S3EGO struct {
-	Bucket *domain.BucketService
-	File   *domain.FileService
+	Bucket domain.BucketService
+	File   domain.FileService
 }
 
 // Start initializes the emulator by configuring the in-memory database and
