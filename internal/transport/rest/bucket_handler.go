@@ -2,18 +2,19 @@
 package rest
 
 import (
+	"net/http"
+
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 // BucketHandler handles HTTP requests related to bucket operations.
 type BucketHandler struct {
-	service *domain.BucketService
+	service domain.BucketService
 }
 
 // NewBucketHandler creates a new BucketHandler with the given BucketService.
-func NewBucketHandler(service *domain.BucketService) *BucketHandler {
+func NewBucketHandler(service domain.BucketService) *BucketHandler {
 	return &BucketHandler{service: service}
 }
 

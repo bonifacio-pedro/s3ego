@@ -1,29 +1,31 @@
 // Package domain contains the business logic for managing buckets and files.
-package domain
+package impl
 
 import (
 	"fmt"
+	"log"
+
+	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"github.com/bonifacio-pedro/s3ego/internal/repository"
-	"log"
 )
 
 // FileService provides methods to manage files within buckets.
 // It communicates with FileRepository and BucketRepository to perform CRUD operations.
-type FileService struct {
-	fileRepository   *repository.FileRepository
-	bucketRepository *repository.BucketRepository
+type fileService struct {
+	fileRepository   repository.FileRepository
+	bucketRepository repository.BucketRepository
 }
 
 // NewFileService creates a new FileService with the provided file and bucket repositories.
-func NewFileService(fileRepository *repository.FileRepository, bucketRepository *repository.BucketRepository) *FileService {
-	return &FileService{fileRepository: fileRepository, bucketRepository: bucketRepository}
+func NewFileService(fileRepository repository.FileRepository, bucketRepository repository.BucketRepository) domain.FileService {
+	return &fileService{fileRepository: fileRepository, bucketRepository: bucketRepository}
 }
 
 // Get retrieves the file data by bucket name and file key.
 // Returns the file data bytes or an error if the bucket or file doesn't exist,
 // or if the file does not belong to the specified bucket.
-func (fs *FileService) Get(bucketName string, key string) ([]byte, model.File, error) {
+func (fs *fileService) Get(bucketName string, key string) ([]byte, model.File, error) {
 	bucket, err := fs.bucketRepository.GetByName(bucketName)
 	if err != nil {
 		return nil, model.File{}, err
@@ -38,14 +40,14 @@ func (fs *FileService) Get(bucketName string, key string) ([]byte, model.File, e
 		return nil, model.File{}, fmt.Errorf("this file is not in %s bucket", bucket.Name)
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] PULLED NEW FILE: %s/%s", bucket.Name, key))
+	log.Printf("[S3EGO] PULLED NEW FILE: %s/%s", bucket.Name, key)
 	return file.Data, *file, nil
 }
 
 // Remove deletes a file specified by bucket name and key.
 // Returns an error if the bucket or file does not exist,
 // or if the file does not belong to the specified bucket.
-func (fs *FileService) Remove(bucketName string, key string) error {
+func (fs *fileService) Remove(bucketName string, key string) error {
 	bucket, err := fs.bucketRepository.GetByName(bucketName)
 	if err != nil {
 		return err
@@ -65,14 +67,14 @@ func (fs *FileService) Remove(bucketName string, key string) error {
 		return err
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] FILE REMOVED: %s/%s", bucket.Name, key))
+	log.Printf("[S3EGO] FILE REMOVED: %s/%s", bucket.Name, key)
 	return nil
 }
 
 // Upload stores a new file in the specified bucket.
 // It returns the key of the stored file or an error if the bucket does not exist,
 // if the file already exists in the bucket, or if there was a failure during insertion.
-func (fs *FileService) Upload(bucketName string, data []byte, fileName string) (string, string, error) {
+func (fs *fileService) Upload(bucketName string, data []byte, fileName string) (string, string, error) {
 	bucket, err := fs.bucketRepository.GetByName(bucketName)
 	if err != nil {
 		return "", "", err
@@ -93,6 +95,6 @@ func (fs *FileService) Upload(bucketName string, data []byte, fileName string) (
 		return "", "", err
 	}
 
-	log.Println(fmt.Sprintf("[S3EGO] RECEIVED NEW FILE: %s/%s/%s", bucket.Name, fileModel.Key, fileModel.ETag))
+	log.Printf("[S3EGO] RECEIVED NEW FILE: %s/%s/%s", bucket.Name, fileModel.Key, fileModel.ETag)
 	return fileModel.Key, fileModel.ETag, nil
 }
