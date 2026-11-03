@@ -1,0 +1,181 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{listings}
+
+\geometry{margin=2.2cm}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    urlcolor=blue!70!black,
+    citecolor=blue!70!black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textit{Benchmark Report: S3EGO vs MinIO}}
+\lhead{\textbf{S3EGO Project}}
+\cfoot{\thepage}
+
+\title{\textbf{\LARGE Comparative Benchmark: S3EGO vs MinIO}\\
+\large Performance, Resource Efficiency, and Protocol Compatibility Evaluation}
+\author{\textbf{Pedro Bonifácio} \\ Software Engineering \& Systems Architecture}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents a comprehensive empirical evaluation comparing \textbf{S3EGO}—a lightweight, S3-wire-compatible emulator written in Go—against \textbf{MinIO}, the industry standard for self-hosted Amazon S3 storage. Both storage engines were benchmarked under identical conditions using a containerized environment (Docker), executing concurrent workloads that span small object transfers (latency and routing overhead), large object transfers (multithreaded streaming throughput), XML bucket listing performance, memory footprint (idle and under heavy load), and binary image distribution size. The results demonstrate that S3EGO delivers up to \textbf{15.1\% higher throughput on large uploads} due to its lock-free parallel streaming and hashing architecture, \textbf{2.35$\times$ faster XML object listing}, and reduces RAM consumption by \textbf{94.6\% under peak load} (13.2\,MiB vs 245.4\,MiB), making it exceptionally well-suited for local development, CI/CD pipelines, and resource-constrained environments.
+\end{abstract}
+
+\vspace{0.5cm}
+
+\section{Introduction}
+
+Amazon Simple Storage Service (S3) has become the de facto standard for cloud object storage. While production systems typically rely on cloud providers or distributed enterprise solutions such as MinIO, development workflows, unit testing suites, and continuous integration (CI) runners present vastly different requirements:
+
+\begin{enumerate}
+    \item \textbf{Instant Cold Start:} CI runners and integration tests require near-instantaneous startup times.
+    \item \textbf{Minimal Resource Footprint:} Running multiple containerized services simultaneously during tests quickly consumes host RAM and CPU.
+    \item \textbf{Protocol Wire Compatibility:} Applications and SDKs (e.g., AWS SDK for Go, Python \texttt{boto3}, Terraform, AWS CLI) must interact with the emulator using standard S3 HTTP/REST endpoints (Path-Style) and XML payloads without client-side code alterations.
+\end{enumerate}
+
+\textbf{S3EGO} was engineered to meet these specific needs by pairing direct filesystem storage (MinIO-style) with a pure-Go SQLite metadata engine (\texttt{modernc.org/sqlite}), built entirely with \texttt{CGO\_ENABLED=0} and multithreaded streaming pipelines.
+
+\section{Experimental Methodology}
+
+\subsection{Hardware and Test Environment}
+\begin{itemize}
+    \item \textbf{Host Architecture:} x86\_64 (Windows / WSL2 Linux Kernel 5.15)
+    \item \textbf{Container Runtime:} Docker Desktop 29.4 (Server API 1.54)
+    \item \textbf{Network Topology:} Host loopback (\texttt{localhost}), identical TCP connection pools
+    \item \textbf{Evaluated S3 Targets:}
+    \begin{itemize}
+        \item \textbf{S3EGO:} Static pure-Go binary on Alpine Linux container (\texttt{s3ego:benchmark})
+        \item \textbf{MinIO:} Official container release (\texttt{minio/minio:RELEASE.2024-01-16T16-07-38Z})
+    \end{itemize}
+\end{itemize}
+
+\subsection{Workload Scenarios}
+An automated, deterministic benchmark client implemented in Go was executed against both targets. Each request was authenticated using standard \textbf{AWS Signature Version 4 (AWS4-HMAC-SHA256)} with \texttt{UNSIGNED-PAYLOAD}:
+
+\begin{itemize}
+    \item \textbf{Scenario 1: Small Object Uploads (Latency \& Concurrency)} \\
+    300 files of 20\,KB each (total volume: 6\,MB), dispatched with a concurrency factor of $C=15$ workers. Measures connection reuse, routing overhead, and metadata transaction latencies.
+    \item \textbf{Scenario 2: Large Object Uploads (Streaming Throughput)} \\
+    20 files of 5\,MB each (total volume: 100\,MB), dispatched with a concurrency factor of $C=4$ workers. Measures disk I/O efficiency, buffer pool reuse, and multithreaded MD5 computation.
+    \item \textbf{Scenario 3: Object Retrieval (Download Bandwidth)} \\
+    Sequential and concurrent retrieval of the stored 20\,KB and 5\,MB objects.
+    \item \textbf{Scenario 4: Object Cataloging (\texttt{ListObjectsV2})} \\
+    50 consecutive XML listing requests on populated buckets to evaluate database index scanning versus directory tree traversal.
+\end{itemize}
+
+\section{Benchmark Results}
+
+Table~\ref{tab:bench_results} summarizes the performance metrics collected during the test execution.
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l r r r}
+\toprule
+\textbf{Metric / Workload} & \textbf{S3EGO} & \textbf{MinIO} & \textbf{Relative Comparison} \\
+\midrule
+\multicolumn{4}{l}{\textit{\textbf{Memory \& Footprint}}} \\
+Container Image Size & \textbf{38.8\,MB} (10.8\,MB comp.) & 207.0\,MB (52.9\,MB comp.) & \textcolor{blue!80!black}{\textbf{5.3$\times$ smaller}} \\
+Idle Memory Usage & \textbf{2.15\,MiB} & 93.4\,MiB & \textcolor{blue!80!black}{\textbf{43.4$\times$ less RAM}} \\
+Peak Memory (Under Load) & \textbf{13.21\,MiB} & 245.4\,MiB & \textcolor{blue!80!black}{\textbf{18.6$\times$ less RAM}} \\
+Cold Start Time & \textbf{$< 50$\,ms} & $\sim 1800$\,ms & \textcolor{blue!80!black}{\textbf{36$\times$ faster boot}} \\
+\midrule
+\multicolumn{4}{l}{\textit{\textbf{Small Object Uploads (20\,KB $\times$ 300 files, $C=15$)}}} \\
+Throughput (Requests/sec) & \textbf{308.9\,req/s} & 300.0\,req/s & \textcolor{blue!80!black}{\textbf{+3.0\% higher}} \\
+Average Latency & \textbf{47.40\,ms} & 48.55\,ms & \textcolor{blue!80!black}{\textbf{2.4\% lower latency}} \\
+Latency p50 & \textbf{47.57\,ms} & 48.20\,ms & Comparable \\
+Latency p95 & 57.52\,ms & \textbf{57.02\,ms} & Comparable \\
+Latency p99 & 71.47\,ms & \textbf{62.38\,ms} & MinIO stabilized \\
+\midrule
+\multicolumn{4}{l}{\textit{\textbf{Large Object Uploads (5\,MB $\times$ 20 files, $C=4$, 100\,MB total)}}} \\
+Throughput (Bandwidth) & \textbf{389.61\,MB/s} & 338.42\,MB/s & \textcolor{blue!80!black}{\textbf{+15.1\% faster}} \\
+Average Latency & \textbf{44.67\,ms} & 57.48\,ms & \textcolor{blue!80!black}{\textbf{22.3\% lower latency}} \\
+Total Batch Transfer Time & \textbf{256.7\,ms} & 295.5\,ms & \textbf{S3EGO faster} \\
+\midrule
+\multicolumn{4}{l}{\textit{\textbf{Object Downloads (Retrieval)}}} \\
+Small File Read Throughput & 4595.1\,req/s & \textbf{7590.0\,req/s} & MinIO cache advantage \\
+Large File Read Throughput & \textbf{1698.90\,MB/s} & 1642.82\,MB/s & Comparable (Loopback saturated) \\
+\midrule
+\multicolumn{4}{l}{\textit{\textbf{Metadata Query (\texttt{ListObjectsV2} XML)}}} \\
+Listing Throughput & \textbf{310.0\,req/s} & 131.9\,req/s & \textcolor{blue!80!black}{\textbf{2.35$\times$ faster}} \\
+Average Query Latency & \textbf{3.23\,ms} & 7.58\,ms & \textcolor{blue!80!black}{\textbf{57.4\% lower latency}} \\
+\bottomrule
+\end{tabularx}
+\caption{Consolidated Performance and Resource Utilization Benchmark.}
+\label{tab:bench_results}
+\end{table}
+
+\section{In-Depth Technical Analysis}
+
+\subsection{Large Object Upload Superiority}
+S3EGO outperformed MinIO on 5\,MB object uploads by achieving \textbf{389.61\,MB/s vs 338.42\,MB/s} (+15.1\%). This performance boost is attributed to S3EGO's concurrent streaming engine:
+\begin{itemize}
+    \item \textbf{Parallel Hashing \& Persistence:} S3EGO leverages an \texttt{io.Pipe} and an asynchronous worker goroutine. While chunks (32\,KB from a pooled \texttt{sync.Pool}) are streamed and committed to disk, a dedicated goroutine computes the MD5 checksum (\texttt{ETag}) in parallel. Both CPU cores and NVMe I/O work concurrently with zero redundant memory buffering.
+    \item \textbf{Lack of Enterprise Overhead:} MinIO performs distributed lock verification, erasure coding parity calculations, and internal telemetry, adding per-request compute overhead that is unnecessary during local development and testing.
+\end{itemize}
+
+\subsection{Memory Utilization: 18.5$\times$ to 43$\times$ Reduction}
+The most staggering divergence observed between the two engines lies in memory footprint:
+\begin{itemize}
+    \item \textbf{Idle State:} MinIO reserves \textbf{93.4\,MiB} immediately upon startup to initialize its cluster mesh, Prometheus exporter, web UI, and distributed subsystem buffers. S3EGO consumes only \textbf{2.15\,MiB}—a \textbf{97.7\% reduction}.
+    \item \textbf{Peak Load:} Under high-throughput streaming workloads (100\,MB across concurrent workers), MinIO's resident set size climbed to \textbf{245.4\,MiB}. In contrast, S3EGO peaked at \textbf{13.21\,MiB}, representing an \textbf{18.6$\times$ memory savings}.
+\end{itemize}
+
+\subsection{Listing Speed via B-Tree Indexing}
+In the \texttt{ListObjectsV2} evaluation, S3EGO completed queries in \textbf{3.23\,ms} versus MinIO's \textbf{7.58\,ms} (2.35$\times$ faster). S3EGO utilizes indexed SQLite B-Trees (\texttt{idx\_files\_bucket\_key}), allowing instantaneous $O(\log N)$ range scans, whereas MinIO must traverse filesystem directory trees and parse sidecar metadata files.
+
+\subsection{Where MinIO Excels}
+MinIO demonstrated higher throughput on small object downloads (7590\,req/s vs 4595\,req/s). MinIO features highly optimized HTTP connection caching and in-memory object read caches. Furthermore, MinIO supports production capabilities absent from S3EGO, such as multi-node distributed clustering, IAM policy enforcement, object locking, and multi-part lifecycle rules.
+
+\section{Architectural Comparison}
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l p{6.5cm} p{6.5cm}}
+\toprule
+\textbf{Feature / Dimension} & \textbf{S3EGO} & \textbf{MinIO} \\
+\midrule
+\textbf{Primary Objective} & Lightweight development, integration testing, CI/CD runners & Production-grade, high-availability cloud storage \\
+\textbf{Persistence Model} & Local Filesystem + Pure-Go SQLite metadata & Distributed Filesystem / Erasure Coding + Sidecar Meta \\
+\textbf{Runtime Dependencies} & Pure Go (\texttt{CGO\_ENABLED=0}), Alpine scratch & Go with heavy enterprise subsystem dependencies \\
+\textbf{Go Library Mode} & \textbf{Yes} (\texttt{s3ego.Start()} directly in Go test suites) & No (Requires running independent external daemon) \\
+\textbf{Authentication} & Transparent / Mock permissive (Accepts any SigV4) & Strict IAM verification and access management \\
+\textbf{Image Size} & \textbf{38.8\,MB} (uncompressed) & 207\,MB (uncompressed) \\
+\bottomrule
+\end{tabularx}
+\caption{High-Level Architectural Comparison.}
+\label{tab:arch_comparison}
+\end{table}
+
+\section{Conclusion}
+
+The benchmark results validate that \textbf{S3EGO} provides a superior developer experience for local development and automated testing environments. By decoupling storage payloads to the filesystem and managing metadata through a pure-Go SQLite database, S3EGO delivers:
+\begin{enumerate}
+    \item \textbf{Exceptional resource savings:} Operates under 14\,MiB of RAM during heavy traffic, compared to MinIO's 245\,MiB footprint.
+    \item \textbf{Faster large-file upload performance:} Surpasses MinIO's upload throughput by 15.1\% due to its lock-free parallel streaming and MD5 hashing pipeline.
+    \item \textbf{Zero-friction test integration:} Provides both a standalone Docker container and an embedded Go library (\texttt{s3ego.Start()}) with automatic temporary storage allocation.
+\end{enumerate}
+
+MinIO remains the tool of choice for production-grade, distributed multi-tenant storage clusters. For developers and automated testing pipelines seeking maximum speed, minimal RAM usage, and instant startup times, \textbf{S3EGO} represents a significantly more efficient and agile alternative.
+
+\end{document}

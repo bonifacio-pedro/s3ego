@@ -1,74 +1,112 @@
-// Package domain contains business logic and services for managing S3EGO buckets and files.
+// Package impl contains the business logic for managing buckets and files.
 package impl
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"regexp"
 
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"github.com/bonifacio-pedro/s3ego/internal/repository"
+	"github.com/bonifacio-pedro/s3ego/internal/storage"
 )
 
-// BucketService encapsulates business logic related to S3EGO buckets.
-// It acts as an intermediary between the handler layer and the repository.
+var bucketNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
+
 type bucketService struct {
 	repository repository.BucketRepository
+	storage    storage.FileStorage
 }
 
-// NewBucketService returns a new instance of BucketService.
-//
-// It receives a pointer to a BucketRepository which it uses
-// to persist and retrieve bucket data.
-func NewBucketService(repository repository.BucketRepository) domain.BucketService {
-	return &bucketService{repository: repository}
+// NewBucketService creates a new BucketService.
+func NewBucketService(repo repository.BucketRepository, st storage.FileStorage) domain.BucketService {
+	return &bucketService{
+		repository: repo,
+		storage:    st,
+	}
 }
 
-// New creates a new bucket with the given name.
-// It returns the bucket URL on success, or an error if the bucket already exists
-// or if there was a problem creating it in the repository.
-func (bs *bucketService) New(name string) (string, error) {
-	bucket := model.NewBucket(name)
+func (bs *bucketService) validateBucketName(name string) error {
+	if len(name) < 3 || len(name) > 63 || !bucketNameRegex.MatchString(name) {
+		return errors.New("InvalidBucketName")
+	}
+	return nil
+}
 
-	exists, err := bs.repository.ExistsByName(bucket.Name)
-	if err != nil {
-		return "", err
+func (bs *bucketService) Create(name string) error {
+	if err := bs.validateBucketName(name); err != nil {
+		return err
 	}
 
+	exists, err := bs.repository.ExistsByName(name)
+	if err != nil {
+		return err
+	}
 	if exists {
-		return "", errors.New("bucket already exists")
+		return errors.New("BucketAlreadyOwnedByYou")
 	}
 
+	bucket := model.NewBucket(name)
 	if err := bs.repository.New(&bucket); err != nil {
-		return "", err
+		return err
 	}
 
-	log.Println("[S3EGO] CREATED NEW BUCKET:", bucket.Name)
-	return bucket.Url, nil
+	log.Printf("[S3EGO] Created bucket: %s", name)
+	return nil
 }
 
-// FindAllFiles returns all file keys stored in a given bucket by name.
-// It returns a slice of strings or an error if the bucket doesn't exist
-// or if there was an issue fetching the files.
-func (bs *bucketService) FindAllFiles(bucketName string) (*[]string, error) {
-	bucket, err := bs.repository.GetByName(bucketName)
+func (bs *bucketService) Exists(name string) (bool, error) {
+	return bs.repository.ExistsByName(name)
+}
+
+func (bs *bucketService) Get(name string) (*model.Bucket, error) {
+	b, err := bs.repository.GetByName(name)
+	if err != nil {
+		return nil, errors.New("NoSuchBucket")
+	}
+	return b, nil
+}
+
+func (bs *bucketService) ListObjects(bucketName, prefix string) (*model.ListBucketResult, error) {
+	bucket, err := bs.Get(bucketName)
 	if err != nil {
 		return nil, err
 	}
 
-	files, err := bs.repository.GetFiles(bucket.ID)
+	files, err := bs.repository.ListObjects(bucket.ID, prefix)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println("[S3EGO] LISTED ALL FILES IN A BUCKET:", bucket.Name)
-	return &files, err
+	contents := make([]model.ObjectSummary, 0, len(files))
+	for _, f := range files {
+		contents = append(contents, model.ObjectSummary{
+			Key:          f.Key,
+			LastModified: f.LastModified.UTC(),
+			ETag:         fmt.Sprintf(`"%s"`, f.ETag),
+			Size:         f.Size,
+			StorageClass: "STANDARD",
+		})
+	}
+
+	result := &model.ListBucketResult{
+		Xmlns:       "http://s3.amazonaws.com/doc/2006-03-01/",
+		Name:        bucketName,
+		Prefix:      prefix,
+		KeyCount:    len(contents),
+		MaxKeys:     1000,
+		IsTruncated: false,
+		Contents:    contents,
+	}
+
+	log.Printf("[S3EGO] Listed %d objects in bucket %s (prefix=%q)", len(contents), bucketName, prefix)
+	return result, nil
 }
 
-// Remove deletes a bucket by its name.
-// It returns an error if the bucket doesn't exist or fails to be deleted.
-func (bs *bucketService) Remove(bucketName string) error {
-	bucket, err := bs.repository.GetByName(bucketName)
+func (bs *bucketService) Delete(name string) error {
+	bucket, err := bs.Get(name)
 	if err != nil {
 		return err
 	}
@@ -77,6 +115,10 @@ func (bs *bucketService) Remove(bucketName string) error {
 		return err
 	}
 
-	log.Println("[S3EGO] BUCKET DELETED:", bucketName)
+	if err := bs.storage.DeleteBucketDir(name); err != nil {
+		log.Printf("[S3EGO] Warning: failed to delete bucket directory %s: %s", name, err)
+	}
+
+	log.Printf("[S3EGO] Deleted bucket: %s", name)
 	return nil
 }

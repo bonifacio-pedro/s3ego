@@ -1,8 +1,12 @@
 package domain
 
-// BucketService interface for decoupling code
+import "github.com/bonifacio-pedro/s3ego/internal/model"
+
+// BucketService defines business operations for managing S3 buckets.
 type BucketService interface {
-	New(name string) (string, error)
-	FindAllFiles(bucketName string) (*[]string, error)
-	Remove(bucketName string) error
+	Create(name string) error
+	Exists(name string) (bool, error)
+	Get(name string) (*model.Bucket, error)
+	ListObjects(bucketName, prefix string) (*model.ListBucketResult, error)
+	Delete(name string) error
 }

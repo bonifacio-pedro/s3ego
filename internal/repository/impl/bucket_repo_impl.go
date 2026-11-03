@@ -1,42 +1,42 @@
-// Package repository provides database access methods for buckets and files.
+// Package impl provides concrete implementations of repositories.
 package impl
 
 import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bonifacio-pedro/s3ego/internal/model"
 	"github.com/bonifacio-pedro/s3ego/internal/repository"
 )
 
-// BucketRepository handles operations on buckets and their files in the database.
 type bucketRepository struct {
 	db *sql.DB
 }
 
-// NewBucketRepository creates a new BucketRepository with the given database connection.
+// NewBucketRepository creates a new BucketRepository backed by SQLite.
 func NewBucketRepository(db *sql.DB) repository.BucketRepository {
 	return &bucketRepository{db: db}
 }
 
-// New inserts a new bucket into the database.
-// Returns an error if the insertion fails.
 func (br *bucketRepository) New(bucket *model.Bucket) error {
-	_, err := br.db.Exec("INSERT INTO buckets (name, url) VALUES (?, ?)", bucket.Name, bucket.Url)
+	res, err := br.db.Exec("INSERT INTO buckets (name) VALUES (?)", bucket.Name)
 	if err != nil {
 		return fmt.Errorf("failed to insert bucket: %w", err)
 	}
 
+	id, err := res.LastInsertId()
+	if err == nil {
+		bucket.ID = int(id)
+	}
 	return nil
 }
 
-// Remove deletes all files associated with a bucket and then removes the bucket itself from the database.
-// Returns an error if the deletion fails.
 func (br *bucketRepository) Remove(bucketID int) error {
 	_, err := br.db.Exec("DELETE FROM files WHERE bucket_id = ?", bucketID)
 	if err != nil {
-		return fmt.Errorf("failed to remove bucket files: %w", err)
+		return fmt.Errorf("failed to remove bucket file records: %w", err)
 	}
 
 	_, err = br.db.Exec("DELETE FROM buckets WHERE id = ?", bucketID)
@@ -47,71 +47,115 @@ func (br *bucketRepository) Remove(bucketID int) error {
 	return nil
 }
 
-// ExistsByName checks if a bucket with the given name exists in the database.
-// Returns true if it exists, false otherwise, or an error if the query fails.
 func (br *bucketRepository) ExistsByName(bucketName string) (bool, error) {
 	var exists bool
 	err := br.db.QueryRow("SELECT EXISTS(SELECT 1 FROM buckets WHERE name = ?)", bucketName).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if bucket exists: %w", err)
 	}
-
 	return exists, nil
 }
 
-// GetByName retrieves a bucket by its name.
-// Returns a pointer to the Bucket model or an error if the bucket is not found.
 func (br *bucketRepository) GetByName(bucketName string) (*model.Bucket, error) {
-	row := br.db.QueryRow("SELECT id, name, url FROM buckets WHERE name = ?", bucketName)
-	var bucket model.Bucket
+	row := br.db.QueryRow("SELECT id, name, created_at FROM buckets WHERE name = ?", bucketName)
+	var (
+		b         model.Bucket
+		createdAt string
+	)
 
-	if err := row.Scan(&bucket.ID, &bucket.Name, &bucket.Url); err != nil {
-		return nil, errors.New("bucket not found")
+	if err := row.Scan(&b.ID, &b.Name, &createdAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("bucket not found")
+		}
+		return nil, fmt.Errorf("error querying bucket: %w", err)
 	}
-	return &bucket, nil
+
+	t, err := time.Parse("2006-01-02 15:04:05", createdAt)
+	if err == nil {
+		b.CreatedAt = t
+	} else {
+		b.CreatedAt = time.Now()
+	}
+
+	return &b, nil
 }
 
-// GetFiles retrieves all file keys associated with a given bucket ID.
-// Returns a slice of file keys or an error if the query fails or no files are found.
-func (br *bucketRepository) GetFiles(bucketID int) ([]string, error) {
-	rows, err := br.db.Query("SELECT key FROM files WHERE bucket_id = ?", bucketID)
+func (br *bucketRepository) ListObjects(bucketID int, prefix string) ([]model.File, error) {
+	query := "SELECT id, key, bucket_id, etag, content_type, size, file_path, created_at, last_modified FROM files WHERE bucket_id = ?"
+	args := []any{bucketID}
+
+	if prefix != "" {
+		query += " AND key LIKE ?"
+		args = append(args, prefix+"%")
+	}
+	query += " ORDER BY key ASC"
+
+	rows, err := br.db.Query(query, args...)
 	if err != nil {
-		return nil, errors.New("no files found with that bucket id")
+		return nil, fmt.Errorf("failed to query bucket objects: %w", err)
 	}
 	defer rows.Close()
 
-	keys := make([]string, 0)
+	files := make([]model.File, 0)
 	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			return nil, fmt.Errorf("error converting DB row to model in files keys iteration: %w", err)
+		var (
+			f            model.File
+			createdAtStr string
+			modifiedStr  string
+		)
+		err := rows.Scan(
+			&f.ID,
+			&f.Key,
+			&f.BucketID,
+			&f.ETag,
+			&f.ContentType,
+			&f.Size,
+			&f.FilePath,
+			&createdAtStr,
+			&modifiedStr,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning object row: %w", err)
 		}
-		keys = append(keys, key)
+
+		if t, err := time.Parse("2006-01-02 15:04:05", modifiedStr); err == nil {
+			f.LastModified = t
+		} else {
+			f.LastModified = time.Now()
+		}
+
+		if t, err := time.Parse("2006-01-02 15:04:05", createdAtStr); err == nil {
+			f.CreatedAt = t
+		} else {
+			f.CreatedAt = time.Now()
+		}
+
+		files = append(files, f)
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error in DB rows scanning: %w", err)
-	}
-
-	return keys, nil
+	return files, rows.Err()
 }
 
-// FileExists checks whether a file with the specified key exists within the given bucket name.
-// Returns true if the file exists, false otherwise, or an error if the query fails.
-func (br *bucketRepository) FileExists(bucketName string, key string) (bool, error) {
-	var exists bool
-	query := `
-		SELECT EXISTS (
-			SELECT 1
-			FROM files f
-			INNER JOIN buckets b ON f.bucket_id = b.id
-			WHERE b.name = ? AND f.key = ?
-		)
-	`
-
-	err := br.db.QueryRow(query, bucketName, key).Scan(&exists)
+func (br *bucketRepository) ListBuckets() ([]model.Bucket, error) {
+	rows, err := br.db.Query("SELECT id, name, created_at FROM buckets ORDER BY name ASC")
 	if err != nil {
-		return false, fmt.Errorf("failed to check if file exists in bucket: %w", err)
+		return nil, fmt.Errorf("failed to list buckets: %w", err)
 	}
-	return exists, nil
+	defer rows.Close()
+
+	var buckets []model.Bucket
+	for rows.Next() {
+		var (
+			b            model.Bucket
+			createdAtStr string
+		)
+		if err := rows.Scan(&b.ID, &b.Name, &createdAtStr); err != nil {
+			return nil, fmt.Errorf("failed scanning bucket row: %w", err)
+		}
+		if t, err := time.Parse("2006-01-02 15:04:05", createdAtStr); err == nil {
+			b.CreatedAt = t
+		}
+		buckets = append(buckets, b)
+	}
+	return buckets, rows.Err()
 }

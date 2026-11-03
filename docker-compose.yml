@@ -5,4 +5,9 @@ services:
     build: .
     ports:
       - "7777:7777"
+    volumes:
+      - ./data:/data
+    environment:
+      - S3EGO_DATA_DIR=/data
+      - S3EGO_PORT=7777
     restart: unless-stopped

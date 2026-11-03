@@ -1,40 +1,86 @@
-// Package s3ego provides a lightweight S3 bucket emulator built in Go.
+// Package s3ego provides an S3 wire-compatible emulator built in Go.
 //
-// S3EGO allows you to create buckets, upload files, and retrieve them
-// via simple REST endpoints or by using it as a Go module (library).
-//
-// The emulator is designed primarily for local development and testing,
-// storing data in an in-memory SQLite database for quick and easy setup.
-//
-// This project aims to facilitate unit testing and local development scenarios
-// that require an S3-like interface without needing access to actual cloud storage.
-//
-// Note: The project is still under active development, and some features are yet to be added,
-// such as advanced bucket policies, authentication, and multipart uploads.
+// S3EGO implements standard AWS S3 REST endpoints (Path-Style) and can be used
+// as a standalone server or imported directly as a Go library for unit and integration testing.
 package s3ego
 
 import (
+	"log"
+	"os"
+
 	"github.com/bonifacio-pedro/s3ego/internal/app"
-	"github.com/bonifacio-pedro/s3ego/internal/config"
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
+	"github.com/bonifacio-pedro/s3ego/internal/storage"
 )
 
-// S3EGO is the main struct exposing the bucket and file services for the emulator.
-type S3EGO struct {
-	Bucket domain.BucketService
-	File   domain.FileService
+// Option defines a functional option for configuring an S3EGO instance.
+type Option func(*options)
+
+type options struct {
+	dataDir string
+	isTemp  bool
 }
 
-// Start initializes the emulator by configuring the in-memory database and
-// creating the application with all its services.
-//
-// Returns a pointer to an S3EGO instance that gives access to the bucket and file services.
-func Start() *S3EGO {
-	db := config.ConfigDatabase()
-	newApp := app.NewApp(db)
+// WithDataDir configures a custom data directory for persisting files and metadata.
+func WithDataDir(dir string) Option {
+	return func(o *options) {
+		o.dataDir = dir
+	}
+}
+
+// S3EGO is the main struct exposing services and application components.
+type S3EGO struct {
+	App     *app.App
+	Bucket  domain.BucketService
+	File    domain.FileService
+	Storage storage.FileStorage
+	dataDir string
+	isTemp  bool
+}
+
+// Start initializes the emulator. If no custom data directory is specified via WithDataDir,
+// an isolated temporary directory is created automatically for clean testing.
+func Start(opts ...Option) *S3EGO {
+	cfg := options{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if cfg.dataDir == "" {
+		envDir := os.Getenv("S3EGO_DATA_DIR")
+		if envDir != "" {
+			cfg.dataDir = envDir
+		} else {
+			tempDir, err := os.MkdirTemp("", "s3ego-test-*")
+			if err != nil {
+				log.Fatalf("[S3EGO] Failed to create temp directory: %s", err)
+			}
+			cfg.dataDir = tempDir
+			cfg.isTemp = true
+		}
+	}
+
+	application, err := app.NewApp(cfg.dataDir)
+	if err != nil {
+		log.Fatalf("[S3EGO] Failed to initialize application: %s", err)
+	}
 
 	return &S3EGO{
-		Bucket: newApp.BucketService,
-		File:   newApp.FileService,
+		App:     application,
+		Bucket:  application.BucketService,
+		File:    application.FileService,
+		Storage: application.Storage,
+		dataDir: cfg.dataDir,
+		isTemp:  cfg.isTemp,
+	}
+}
+
+// Close gracefully closes database connections and cleans up temporary resources.
+func (s *S3EGO) Close() {
+	if s.App != nil {
+		_ = s.App.Close()
+	}
+	if s.isTemp && s.dataDir != "" {
+		_ = os.RemoveAll(s.dataDir)
 	}
 }

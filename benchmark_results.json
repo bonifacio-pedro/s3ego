@@ -1,0 +1,32 @@
+[
+  {
+    "target_name": "S3EGO",
+    "small_upload_rps": 308.9499080977007,
+    "small_upload_lat_avg": 47398262,
+    "small_upload_lat_p50": 47568000,
+    "small_upload_lat_p95": 57515800,
+    "small_upload_lat_p99": 71474000,
+    "large_upload_mbs": 389.6095800320415,
+    "large_upload_lat_avg": 44673990,
+    "small_download_rps": 4595.053271984267,
+    "small_download_mbs": 89.74713421844271,
+    "large_download_mbs": 1698.8975853568618,
+    "list_objects_rps": 310.04060291735806,
+    "list_objects_lat_avg": 3225384
+  },
+  {
+    "target_name": "MinIO",
+    "small_upload_rps": 300.04458662557255,
+    "small_upload_lat_avg": 48554619,
+    "small_upload_lat_p50": 48202700,
+    "small_upload_lat_p95": 57024700,
+    "small_upload_lat_p99": 62377300,
+    "large_upload_mbs": 338.4150870860464,
+    "large_upload_lat_avg": 57484365,
+    "small_download_rps": 7589.960000910794,
+    "small_download_mbs": 148.24140626778896,
+    "large_download_mbs": 1642.818419280117,
+    "list_objects_rps": 131.9305422635534,
+    "list_objects_lat_avg": 7579746
+  }
+]

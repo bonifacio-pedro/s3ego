@@ -1,79 +1,97 @@
-// Package rest provides HTTP handlers for bucket and file related operations.
+// Package rest provides HTTP handlers for bucket and file operations complying with AWS S3 wire protocol.
 package rest
 
 import (
+	"encoding/xml"
+	"errors"
 	"net/http"
 
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/gin-gonic/gin"
 )
 
-// BucketHandler handles HTTP requests related to bucket operations.
+// BucketHandler handles S3 bucket-level operations.
 type BucketHandler struct {
 	service domain.BucketService
 }
 
-// NewBucketHandler creates a new BucketHandler with the given BucketService.
+// NewBucketHandler creates a new BucketHandler.
 func NewBucketHandler(service domain.BucketService) *BucketHandler {
 	return &BucketHandler{service: service}
 }
 
-// Create handles POST requests to create a new bucket.
-// It expects a bucket name as a URL parameter "name".
-// Returns HTTP 201 Created with the bucket URL on success,
-// or HTTP 400 Bad Request if an error occurs.
+// Create handles PUT /{bucket} to create a new bucket.
 func (bh *BucketHandler) Create(c *gin.Context) {
-	bucketName := c.Param("name")
-
-	buckerUrl, err := bh.service.New(bucketName)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "bucket created successfully",
-		"url":     buckerUrl,
-	})
-}
-
-// FindAllFiles handles GET requests to list all files in a bucket.
-// It expects the bucket name as a URL parameter "bucket".
-// Returns HTTP 200 OK with the list of file keys on success,
-// or HTTP 400 Bad Request if an error occurs.
-func (bh *BucketHandler) FindAllFiles(c *gin.Context) {
 	bucketName := c.Param("bucket")
 
-	files, err := bh.service.FindAllFiles(bucketName)
+	err := bh.service.Create(bucketName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if errors.Is(err, errors.New("BucketAlreadyOwnedByYou")) || err.Error() == "BucketAlreadyOwnedByYou" {
+			RespondS3Error(c, http.StatusConflict, "BucketAlreadyOwnedByYou", "Your previous request to create the named bucket succeeded and you already own it.")
+			return
+		}
+		if errors.Is(err, errors.New("InvalidBucketName")) || err.Error() == "InvalidBucketName" {
+			RespondS3Error(c, http.StatusBadRequest, "InvalidBucketName", "The specified bucket is not valid.")
+			return
+		}
+		RespondS3Error(c, http.StatusBadRequest, "InvalidArgument", err.Error())
 		return
 	}
 
-	// Default S3 Headers
-	c.Header("x-amz-bucket-region", "us-east-1") // Default region
-	c.Header("Content-Type", "application/json")
-
-	c.JSON(http.StatusOK, gin.H{
-		"Name":        bucketName,
-		"Contents":    files,
-		"MaxKeys":     1000,
-		"IsTruncated": false,
-	})
+	c.Header("Location", "/"+bucketName)
+	c.Status(http.StatusOK)
 }
 
-// Delete handles DELETE requests to remove a bucket.
-// It expects the bucket name as a URL parameter "bucket".
-// Returns HTTP 204 No Content on successful deletion,
-// or HTTP 400 Bad Request if an error occurs.
-func (bh *BucketHandler) Remove(c *gin.Context) {
+// Head handles HEAD /{bucket} to check bucket existence.
+func (bh *BucketHandler) Head(c *gin.Context) {
 	bucketName := c.Param("bucket")
 
-	err := bh.service.Remove(bucketName)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	exists, err := bh.service.Exists(bucketName)
+	if err != nil || !exists {
+		c.Status(http.StatusNotFound)
 		return
 	}
 
-	c.JSON(http.StatusNoContent, gin.H{})
+	c.Status(http.StatusOK)
+}
+
+// ListObjects handles GET /{bucket} to list objects inside a bucket in XML format.
+func (bh *BucketHandler) ListObjects(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	prefix := c.Query("prefix")
+
+	result, err := bh.service.ListObjects(bucketName, prefix)
+	if err != nil {
+		if err.Error() == "NoSuchBucket" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.")
+			return
+		}
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", err.Error())
+		return
+	}
+
+	xmlBytes, err := xml.MarshalIndent(result, "", "  ")
+	if err != nil {
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", "Failed to marshal XML result.")
+		return
+	}
+
+	c.Data(http.StatusOK, "application/xml; charset=utf-8", append([]byte(xml.Header), xmlBytes...))
+}
+
+// Delete handles DELETE /{bucket} to remove a bucket.
+func (bh *BucketHandler) Delete(c *gin.Context) {
+	bucketName := c.Param("bucket")
+
+	err := bh.service.Delete(bucketName)
+	if err != nil {
+		if err.Error() == "NoSuchBucket" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.")
+			return
+		}
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", err.Error())
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

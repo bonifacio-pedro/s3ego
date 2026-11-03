@@ -1,53 +1,76 @@
-// Package config provides configuration utilities for the S3EGO project,
-// including initialization of the SQLite in-memory database schema.
+// Package config provides configuration utilities for the S3EGO project.
 package config
 
 import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
-	_ "modernc.org/sqlite" // SQLite driver for database/sql
+	_ "modernc.org/sqlite" // SQLite pure-Go driver
 )
 
-// ConfigDatabase initializes an in-memory SQLite database,
-// sets up the necessary schema for buckets and files,
-// and returns the active *sql.DB connection.
-//
-// If the database cannot be initialized or any schema fails to create,
-// the function will log the error and terminate the application.
-func ConfigDatabase() *sql.DB {
-	// Open in-memory SQLite DB with shared cache
-	db, err := sql.Open("sqlite", "file::memory:?mode=memory&cache=shared")
-	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3EGO] Failed to open database: %s", err))
+// Config holds runtime configuration options for S3EGO.
+type Config struct {
+	DataDir string
+	Port    string
+}
+
+// LoadConfig loads configuration from environment variables with sensible defaults.
+func LoadConfig() Config {
+	dataDir := os.Getenv("S3EGO_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
 	}
-	log.Println("[S3EGO] Started Database")
+
+	port := os.Getenv("S3EGO_PORT")
+	if port == "" {
+		port = "7777"
+	}
+
+	return Config{
+		DataDir: dataDir,
+		Port:    port,
+	}
+}
+
+// ConfigDatabase initializes an SQLite database persisted in the configured data directory,
+// creates the schema for buckets and file metadata, and returns the *sql.DB connection.
+func ConfigDatabase(dataDir string) (*sql.DB, error) {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("[S3EGO] failed to create data directory: %w", err)
+	}
+
+	dbPath := filepath.Join(dataDir, "metadata.db")
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?cache=shared&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", filepath.ToSlash(dbPath)))
+	if err != nil {
+		return nil, fmt.Errorf("[S3EGO] failed to open metadata database: %w", err)
+	}
 
 	// Create buckets table
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS buckets (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT UNIQUE NOT NULL,
-			url TEXT UNIQUE,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3EGO] Failed to create buckets table: %s", err))
+		db.Close()
+		return nil, fmt.Errorf("[S3EGO] failed to create buckets table: %w", err)
 	}
-	log.Println("[S3EGO] Buckets table initialized")
 
-	// Create files table with S3 metadata support
+	// Create files metadata table (payload is stored on filesystem)
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS files (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			key TEXT NOT NULL,
-			data BLOB,
 			bucket_id INTEGER NOT NULL,
 			etag TEXT NOT NULL,
 			content_type TEXT DEFAULT 'application/octet-stream',
 			size INTEGER DEFAULT 0,
+			file_path TEXT NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(bucket_id) REFERENCES buckets(id) ON DELETE CASCADE,
@@ -55,11 +78,11 @@ func ConfigDatabase() *sql.DB {
 		);
 	`)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("[S3EGO] Failed to create files table: %s", err))
+		db.Close()
+		return nil, fmt.Errorf("[S3EGO] failed to create files table: %w", err)
 	}
-	log.Println("[S3EGO] Files table initialized")
 
-	// Create indexes for better performance
+	// Create indexes for fast lookup
 	indexes := []string{
 		"CREATE INDEX IF NOT EXISTS idx_files_bucket_key ON files(bucket_id, key);",
 		"CREATE INDEX IF NOT EXISTS idx_files_etag ON files(etag);",
@@ -68,12 +91,11 @@ func ConfigDatabase() *sql.DB {
 	}
 
 	for _, indexSQL := range indexes {
-		_, err = db.Exec(indexSQL)
-		if err != nil {
+		if _, err := db.Exec(indexSQL); err != nil {
 			log.Printf("[S3EGO] Warning: Failed to create index: %s", err)
 		}
 	}
-	log.Println("[S3EGO] Database indexes created")
-	
-	return db
+
+	log.Printf("[S3EGO] Metadata database initialized at %s", dbPath)
+	return db, nil
 }

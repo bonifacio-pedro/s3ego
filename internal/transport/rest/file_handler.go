@@ -1,121 +1,122 @@
-// Package rest provides HTTP handlers for file and bucket related operations.
+// Package rest provides HTTP handlers for object operations conforming to AWS S3.
 package rest
 
 import (
-	"crypto/md5"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/bonifacio-pedro/s3ego/internal/domain"
 	"github.com/gin-gonic/gin"
 )
 
-// FileHandler handles HTTP requests related to file operations.
+// FileHandler handles S3 object-level operations.
 type FileHandler struct {
 	service domain.FileService
 }
 
-// NewFileHandler creates a new FileHandler with the given FileService.
+// NewFileHandler creates a new FileHandler.
 func NewFileHandler(service domain.FileService) *FileHandler {
 	return &FileHandler{service: service}
 }
 
-// Get handles GET requests to download a file from a bucket.
-// It expects the bucket name as URL parameter "bucket" and the file key as "key".
-// Returns HTTP 200 OK with file data on success,
-// or HTTP 400 Bad Request if an error occurs.
+// Put handles PUT /{bucket}/{key...} uploading the request body directly as an object.
+func (fh *FileHandler) Put(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	key := strings.TrimPrefix(c.Param("key"), "/")
+
+	if key == "" {
+		RespondS3Error(c, http.StatusBadRequest, "InvalidObjectName", "Object key cannot be empty.")
+		return
+	}
+
+	fileMeta, err := fh.service.Put(bucketName, key, c.Request.Body)
+	if err != nil {
+		if err.Error() == "NoSuchBucket" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.")
+			return
+		}
+		if err.Error() == "InvalidObjectName" {
+			RespondS3Error(c, http.StatusBadRequest, "InvalidObjectName", "The specified object name is invalid.")
+			return
+		}
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", err.Error())
+		return
+	}
+
+	c.Header("ETag", fmt.Sprintf(`"%s"`, fileMeta.ETag))
+	c.Header("x-amz-storage-class", "STANDARD")
+	c.Header("Content-Length", "0")
+	c.Status(http.StatusOK)
+}
+
+// Get handles GET /{bucket}/{key...} streaming the object data to the client.
 func (fh *FileHandler) Get(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	key := strings.TrimPrefix(c.Param("key"), "/")
 
-	fileData, fileModel, err := fh.service.Get(bucketName, key)
+	fileMeta, fileHandle, err := fh.service.Get(bucketName, key)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "NoSuchBucket" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.")
+			return
+		}
+		if err.Error() == "NoSuchKey" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.")
+			return
+		}
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", err.Error())
 		return
 	}
+	defer fileHandle.Close()
 
-	// S3 Default Headers
-	etag := fmt.Sprintf(`"%x"`, md5.Sum(fileData))
-	c.Header("ETag", etag)
-	c.Header("Last-Modified", fileModel.LastModified.UTC().Format(time.RFC1123))
-	c.Header("Content-Length", fmt.Sprintf("%d", len(fileData)))
-	c.Header("Content-Type", fileModel.ContentType)
-	c.Header("Accept-Ranges", "bytes")
+	c.Header("ETag", fmt.Sprintf(`"%s"`, fileMeta.ETag))
 	c.Header("x-amz-storage-class", "STANDARD")
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Content-Type", fileMeta.ContentType)
 
-	c.Data(http.StatusOK, fileModel.ContentType, fileData)
+	http.ServeContent(c.Writer, c.Request, filepath.Base(fileMeta.Key), fileMeta.LastModified, fileHandle)
 }
 
-// Remove handles DELETE requests to delete a file from a bucket.
-// It expects the bucket name as URL parameter "bucket" and the file key as "key".
-// Returns HTTP 204 No Content on success,
-// or HTTP 400 Bad Request if an error occurs.
-func (fh *FileHandler) Remove(c *gin.Context) {
+// Head handles HEAD /{bucket}/{key...} returning object metadata without body.
+func (fh *FileHandler) Head(c *gin.Context) {
 	bucketName := c.Param("bucket")
 	key := strings.TrimPrefix(c.Param("key"), "/")
 
-	err := fh.service.Remove(bucketName, key)
+	fileMeta, err := fh.service.Head(bucketName, key)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err.Error() == "NoSuchBucket" || err.Error() == "NoSuchKey" {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
-	c.JSON(http.StatusNoContent, gin.H{})
-}
-
-// New handles POST requests to upload a new file to a bucket.
-// It expects the bucket name as URL parameter "bucket" and a form file with key "file".
-// Returns HTTP 201 Created with the file key and bucket name on success,
-// or HTTP 400 Bad Request / 500 Internal Server Error if an error occurs.
-func (fh *FileHandler) New(c *gin.Context) {
-	bucketName := c.Param("bucket")
-
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required, put 'file' in form"})
-		return
-	}
-
-	fileData, err := getFileData(fileHeader)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
-		return
-	}
-
-	fileKey, fileEtag, err := fh.service.Upload(bucketName, fileData, fileHeader.Filename)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// S3 Default Headers
-	c.Header("ETag", fileEtag)
-	c.Header("x-amz-version-id", "null")
+	c.Header("ETag", fmt.Sprintf(`"%s"`, fileMeta.ETag))
+	c.Header("Content-Type", fileMeta.ContentType)
+	c.Header("Content-Length", fmt.Sprintf("%d", fileMeta.Size))
+	c.Header("Last-Modified", fileMeta.LastModified.UTC().Format(http.TimeFormat))
+	c.Header("Accept-Ranges", "bytes")
 	c.Header("x-amz-storage-class", "STANDARD")
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "File uploaded successfully",
-		"key":     fileKey,
-		"bucket":  bucketName,
-		"etag":    fileEtag,
-	})
+	c.Status(http.StatusOK)
 }
 
-// getFileData reads all bytes from the uploaded file header.
-func getFileData(fileHeader *multipart.FileHeader) ([]byte, error) {
-	file, err := fileHeader.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+// Delete handles DELETE /{bucket}/{key...} removing the object.
+func (fh *FileHandler) Delete(c *gin.Context) {
+	bucketName := c.Param("bucket")
+	key := strings.TrimPrefix(c.Param("key"), "/")
 
-	data, err := io.ReadAll(file)
+	err := fh.service.Delete(bucketName, key)
 	if err != nil {
-		return nil, err
+		if err.Error() == "NoSuchBucket" {
+			RespondS3Error(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.")
+			return
+		}
+		RespondS3Error(c, http.StatusInternalServerError, "InternalError", err.Error())
+		return
 	}
-	return data, nil
+
+	c.Status(http.StatusNoContent)
 }
